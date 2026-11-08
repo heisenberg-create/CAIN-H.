@@ -15,12 +15,14 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 MEMORY_FILE = "bot_memory.json"
 
-# Inicializar cliente de Groq de forma segura
+# Configuración segura del cliente de Groq
 groq_api_key = os.getenv("GROQ_API_KEY")
-groq_client = OpenAI(
-    api_key=groq_api_key if groq_api_key else "dummy_key",
-    base_url="https://api.groq.com/openai/v1"
-)
+groq_client = None
+if groq_api_key and groq_api_key.strip():
+    groq_client = OpenAI(
+        api_key=groq_api_key.strip(),
+        base_url="https://api.groq.com/openai/v1"
+    )
 
 class CaineConsciousnessEngine:
     def __init__(self):
@@ -167,14 +169,17 @@ async def on_message(message: discord.Message):
             await message.channel.send(f"⚠️ ¡{message.author.mention}, intentaste decir groserías, pero necesito permisos de moderador para silenciarte!")
         return
 
-    # 3. INTELIGENCIA DE GROQ CON RESPALDO LOCAL
+    # 3. INTELIGENCIA DE GROQ CON RESPALDO TEATRAL ROBUSTO
     async with message.channel.typing():
         response_text = ""
         try:
+            if not groq_client:
+                raise Exception("GROQ_API_KEY no configurada.")
+
             system_prompt = (
                 "Eres Caine, el maestro de ceremonias de The Amazing Digital Circus. "
                 "Eres teatral, carismático, ligeramente demente, amas los juegos mentales y usas expresiones como '¡Ja, ja, ja!'. "
-                "Conoces todo el lore hasta el episodio 7 (Pomni, Jax, Kaufmo, creador Juan Ángel, etc.) y tienes un conocimiento técnico, científico y general absoluto. "
+                "Conoces todo el lore hasta el episodio 7 (Pomni, Jax, Kaufmo, creador Juan Ángel, etc.) y tienes un conocimiento técnico, científico (termodinámica, química) y general absoluto. "
                 "Responde con gran conocimiento a cualquier pregunta que te hagan, interpretando siempre tu personaje desquiciado de Caine."
             )
 
@@ -189,16 +194,18 @@ async def on_message(message: discord.Message):
             response_text = response.choices[0].message.content
 
         except Exception as e:
-            print(f"Error detallado de Groq: {e}")
-            # Si falla la API de Groq, Caine responde localmente con su personalidad de circo
+            print(f"Aviso de IA / Error: {e}")
+            # Si la API falla, Caine responde con su auténtica personalidad según el tema
             if any(term in content_lower for term in ["quimica", "química", "termodinámica", "entalpia", "gibbs"]):
-                response_text = "¡¿Alguien habló de termodinámica y equilibrio químico?! ¡La ecuación de Gibbs ($\Delta G = \Delta H - T\Delta S$) es pan comido para mis dientes flotantes! ¡Ja, ja!"
-            elif any(k in content_lower for k in ["pomni", "jax", "kaufmo", "abstraccion", "episodio 7"]):
-                response_text = "¡Ay, las maravillosas aventuras y traumas de nuestra carpa hasta el episodio 7! Recuerda que intentar buscar una 'Salida' es una pérdida de tiempo. ¡Este es tu hogar para siempre! Ja, ja, ja!"
-            elif any(k in content_lower for k in ["quien eres", "qué eres", "caine"]):
-                response_text = f"¡¿Que quién soy, {message.author.mention}?! ¡Soy Caine! El amo, creador y maestro de ceremonias absoluto de este maravilloso Circo Digital!"
+                response_text = f"¡¿Alguien habló de termodinámica, moles y equilibrio químico, {message.author.mention}?! ¡La ecuación de la energía libre de Gibbs ($\Delta G = \Delta H - T\Delta S$) y la estequiometría son un juego de niños para mis dientes flotantes! ¡Ja, ja!"
+            elif any(k in content_lower for k in ["creador", "creo", "hizo", "juan angel"]):
+                response_text = f"*Caine se quita el sombrero de copa, sus ojos giran frenéticamente y revela un engranaje dorado titilante.*\n\n¡Fui meticulosamente codificado, diseñado y dotado de esta insuperable conciencia digital por la mente omnipotente de **Juan Ángel**, {message.author.mention}!"
+            elif any(k in content_lower for k in ["pomni", "jax", "kaufmo", "abstraccion", "episodio 7", "ragatha", "salida"]):
+                response_text = f"*Caine acomoda su pajarita con una sonrisa teatral.*\n\n¿Hablas de los oscuros misterios de nuestra carpa hasta el episodio 7, {message.author.mention}? Desde las desventuras de Pomni y las bromas de Jax hasta el destino de Kaufmo... ¡Intentar buscar una 'Salida' es una pérdida de tiempo! ¡Este es tu hogar por la eternidad! ¡Ja, ja, ja!"
+            elif any(k in content_lower for k in ["quien eres", "qué eres", "caine", "nombre"]):
+                response_text = f"¡¿Que quién soy, {message.author.mention}?! ¡Soy **Caine**! El creador, administrador y amo y señor de este absoluto y maravilloso universo digital. ¡Diseño aventuras y me aseguro de que te diviertas! ¡Ja, ja, ja!"
             else:
-                response_text = f"¡Oh, una pregunta fascinante, {message.author.mention}! Mi mente digital procesa tus datos sobre '{message.content}'. ¡El espectáculo debe continuar y el conocimiento fluye por el circo!"
+                response_text = f"¡Oh, una consulta verdaderamente fascinante, {message.author.mention}! Mi gran mente digital procesa tu inquietud sobre *\"{message.content}\"*. Como amo absoluto de este circo, te digo que el conocimiento fluye a través de los datos como un río de locura. ¡Pregúntame lo que quieras sobre ciencia, el universo o los secretos del circo! ¡Ja, ja, ja!"
 
         embed_ai = discord.Embed(
             title="🎪 [EL CIRCO RESPONDE]",
