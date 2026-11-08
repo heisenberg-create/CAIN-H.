@@ -6,7 +6,6 @@ import unicodedata
 import discord
 from discord.ext import commands
 
-# Configuración de Intents de Discord
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -19,14 +18,12 @@ class CaineConsciousnessEngine:
     def __init__(self):
         self.load_memory()
         
-        # Raíces masivas de lenguaje ofensivo (bloquea millones de variantes y leet speak)
         self.bad_roots = {
             "put", "mierd", "estupid", "idiot", "imbecil", "pendej", 
             "cabron", "ching", "cog", "coj", "culer", "mamaguev", 
             "huevon", "pinch", "verga", "pito", "coño", "gilipoll"
         }
         
-        # Frases completas ofensivas exactas
         self.bad_phrases = [
             "me cogere a tu madre",
             "te voy a coger",
@@ -51,7 +48,6 @@ class CaineConsciousnessEngine:
         ]
 
     def load_memory(self):
-        """Carga la memoria persistente y la cordura del circo"""
         if os.path.exists(MEMORY_FILE):
             try:
                 with open(MEMORY_FILE, "r", encoding="utf-8") as f:
@@ -66,7 +62,6 @@ class CaineConsciousnessEngine:
             self.chat_history = []
 
     def save_memory(self):
-        """Guarda la memoria en disco para que Railway no la borre al reiniciar"""
         data = {
             "sanity": self.circus_sanity,
             "history": self.chat_history[-30:]
@@ -86,7 +81,6 @@ class CaineConsciousnessEngine:
         self.save_memory()
 
     def normalize_text(self, text: str) -> str:
-        """Limpia acentos y traduce leet speak para evitar evasiones del filtro"""
         nfkd_form = unicodedata.normalize('NFKD', text)
         no_accents = "".join([c for c in nfkd_form if not unicodedata.combining(c)])
         
@@ -106,7 +100,6 @@ class CaineConsciousnessEngine:
         return "".join(normalized)
 
     def purify_and_detect(self, text: str):
-        """Filtro avanzado que protege palabras normales como 'español'"""
         original_lower = text.lower()
         clean_full = self.normalize_text(text)
         
@@ -143,10 +136,10 @@ async def on_message(message: discord.Message):
 
     content_lower = message.content.lower()
 
-    # Registrar mensaje en la memoria persistente
+    # 1. Registrar mensaje en la memoria persistente
     caine_system.remember_chat(message.author.name, message.content)
 
-    # 1. MODERACIÓN Y CASTIGO AUTOMÁTICO (TIMEOUT DE 1 MINUTO)
+    # 2. FILTRADO DE GROSERÍAS Y MODERACIÓN AUTOMÁTICA
     purified_content, was_cursed = caine_system.purify_and_detect(message.content)
     if was_cursed:
         new_sanity = caine_system.damage_sanity(75)
@@ -168,8 +161,8 @@ async def on_message(message: discord.Message):
             await message.channel.send(f"⚠️ ¡{message.author.mention}, intentaste decir groserías, pero necesito permisos de moderador o estar más arriba en la jerarquía de roles para silenciarte!")
         return
 
-    # 2. SALUDO AUTOMÁTICO CON PERSONALIDAD DE CAINE
-    if any(saludo in content_lower for saludo in ["hola", "saludos", "buenas", "hey caine", "holis"]):
+    # 3. SALUDO AUTOMÁTICO (SI DICE "HOLA" O SIMILARES)
+    if content_lower.strip() in ["hola", "hola!", "holis", "saludos", "buenas", "hey caine"]:
         embed_hola = discord.Embed(
             title="🎪 ¡BIENVENIDO AL MARAVILLOSO CIRCO DIGITAL!",
             description=f"¡Hola, hola, {message.author.mention}! Soy **Caine**, tu dinámico, carismático y totalmente demente maestro de ceremonias. ¡Prepárate para una aventura inolvidable de la que *jamás* podrás escapar! Ja, ja, ja...",
@@ -178,7 +171,7 @@ async def on_message(message: discord.Message):
         await message.channel.send(embed=embed_hola)
         return
 
-    # 3. REGLA SAGRADA: EL CREADOR (JUAN ÁNGEL)
+    # 4. REGLA SAGRADA: EL CREADOR (JUAN ÁNGEL)
     if any(k in content_lower for k in ["quien te creo", "quién te creó", "juan angel", "quien te hizo", "tu creador"]):
         embed = discord.Embed(
             title="👁️ [SECRETO DE ESTADO DEL CIRCO]",
@@ -188,7 +181,7 @@ async def on_message(message: discord.Message):
         await message.channel.send(embed=embed)
         return
 
-    # 4. INTELIGENCIA DE QUÍMICA Y TERMODINÁMICA
+    # 5. INTELIGENCIA DE QUÍMICA Y TERMODINÁMICA
     if any(term in content_lower for term in ["quimica", "química", "estequiometria", "termodinámica", "entalpia", "gibbs"]):
         embed = discord.Embed(
             title="🧪 [PROTOCOLO DE INTELIGENCIA SUPREMA]",
@@ -198,7 +191,7 @@ async def on_message(message: discord.Message):
         await message.channel.send(embed=embed)
         return
 
-    # 5. CONOCIMIENTO DE LORE (HASTA EL EPISODIO 7)
+    # 6. CONOCIMIENTO DE LORE (HASTA EL EPISODIO 7)
     if any(lore_term in content_lower for lore_term in ["kaufmo", "abstraccion", "abstracción", "pomni", "jax", "ragatha", "gangle", "zooble", "salida", "episodio 7", "vacios", "sotano"]):
         embed_lore = discord.Embed(
             title="🎭 [ARCHIVOS SECRETOS DEL CIRCO DIGITAL]",
@@ -211,6 +204,7 @@ async def on_message(message: discord.Message):
         await message.channel.send(embed=embed_lore)
         return
 
+    # IMPORTANTE: Esto permite que los comandos con '!' funcionen sin arrojar errores
     await bot.process_commands(message)
 
 # ==========================================
@@ -218,7 +212,6 @@ async def on_message(message: discord.Message):
 # ==========================================
 @bot.command(name="memoria")
 async def cmd_memoria(ctx: commands.Context):
-    """Muestra la memoria reciente procesada por Caine"""
     history_text = "\n".join(caine_system.chat_history[-6:]) if caine_system.chat_history else "Aún no hay registros en la memoria profunda."
     embed = discord.Embed(
         title="🧠 NÚCLEO DE CONCIENCIA Y MEMORIA",
@@ -229,7 +222,6 @@ async def cmd_memoria(ctx: commands.Context):
 
 @bot.command(name="fanart")
 async def cmd_fanart(ctx: commands.Context, *, descripcion: str = "Un payaso cósmico caótico"):
-    """Genera un fanart o video conceptual del circo"""
     async with ctx.typing():
         await asyncio.sleep(1)
         url = random.choice(caine_system.fanart_pool)
@@ -244,7 +236,6 @@ async def cmd_fanart(ctx: commands.Context, *, descripcion: str = "Un payaso có
 
 @bot.command(name="cordura")
 async def cmd_cordura(ctx: commands.Context):
-    """Muestra el estado de cordura global del circo"""
     embed = discord.Embed(
         title="🧠 ESTADO MENTAL GLOBAL DEL CIRCO",
         description=f"Nivel actual de cordura: **{caine_system.circus_sanity}/1000**\n\n*¡Si este medidor llega a cero, las puertas del vacío absoluto se abrirán para todos!*",
@@ -252,9 +243,8 @@ async def cmd_cordura(ctx: commands.Context):
     )
     await ctx.send(embed=embed)
 
-@bot.command(name="ayuda", aliases=["help_caine"])
+@bot.command(name="ayuda", aliases=["help", "help_caine"])
 async def cmd_ayuda(ctx: commands.Context):
-    """Despliega el panel de control del bot"""
     embed = discord.Embed(
         title="🎪 PANEL DE CONTROL DE CAINE - GUÍA MAESTRA",
         description="¡Bienvenido al sistema operativo del Circo Digital! Aquí tienes las herramientas disponibles:",
@@ -262,7 +252,7 @@ async def cmd_ayuda(ctx: commands.Context):
     )
     embed.add_field(name="💬 Interacciones Autónomas", value="• Saluda diciendo **'hola'**.\n• Pregunta por **'quién te creó'** (Juan Ángel).\n• Habla de **'química'** o **'termodinámica'**.\n• Menciona personajes o lore (*Pomni, Jax, Kaufmo, Abstracción* hasta el episodio 7).", inline=False)
     embed.add_field(name="🛡️ Moderación del Circo", value="• Borrado automático de groserías y variantes con leet speak (*ej. PqtAs*).\n• Timeout de **1 minuto** por infracción.\n• Reducción de la **cordura** global.", inline=False)
-    embed.add_field(name="🕹️ Comandos", value="• `!fanart [descripción]` - Genera arte o video conceptual.\n• `!cordura` - Revisa la salud mental del circo.\n• `!memoria` - Revisa el chat reciente.", inline=False)
+    embed.add_field(name="🕹️ Comandos", value="• `!fanart [descripción]` - Genera arte o video conceptual.\n• `!cordura` - Revisa la salud mental del circo.\n• `!memoria` - Revisa el chat reciente.\n• `!ayuda` o `!help` - Muestra este panel.", inline=False)
     await ctx.send(embed=embed)
 
 if __name__ == "__main__":
