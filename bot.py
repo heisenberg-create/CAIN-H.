@@ -1,6 +1,7 @@
 import asyncio
 import random
 import os
+import json
 import discord
 from discord.ext import commands
 
@@ -10,14 +11,16 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
-class CaineSanityAndJusticeEngine:
+MEMORY_FILE = "bot_memory.json"
+
+class CaineConsciousnessEngine:
     def __init__(self):
-        self.circus_sanity = 1000  # Cordura global del circo
-        self.bad_words = ["estupido", "idiota", "imbecil", "maldito", "carajo", "mierda", "puto", "pendejo"]
+        self.load_memory()
+        self.bad_words = ["estupido", "idiota", "imbecil", "maldito", "carajo", "mierda", "puto", "putos", "puta", "putas", "pendejo"]
         self.censor_effects = [
             "[¡HONK! 🤡]", 
             "*[Sonido de bocina de payaso aturdidora]*", 
-            "*[BEEP censurado por el Departamento de Física]*", 
+            "*[BEEP censurado por el Departamento del Circo]*", 
             "*[¡ZAS! Glitch de píxeles rojos]*"
         ]
         self.fanart_pool = [
@@ -26,13 +29,43 @@ class CaineSanityAndJusticeEngine:
             "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=600&auto=format&fit=crop&q=80"
         ]
 
+    def load_memory(self):
+        """Carga la memoria persistente del circo y la cordura"""
+        if os.path.exists(MEMORY_FILE):
+            try:
+                with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.circus_sanity = data.get("sanity", 1000)
+                    self.chat_history = data.get("history", [])
+            except:
+                self.circus_sanity = 1000
+                self.chat_history = []
+        else:
+            self.circus_sanity = 1000
+            self.chat_history = []
+
+    def save_memory(self):
+        """Guarda la memoria en disco para que no se borre al reiniciar Railway"""
+        data = {
+            "sanity": self.circus_sanity,
+            "history": self.chat_history[-20:] # Guarda los últimos 20 mensajes clave
+        }
+        with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
     def damage_sanity(self, amount: int = 50):
-        """Reduce la cordura del circo cuando hay insultos o burlas"""
         self.circus_sanity = max(0, self.circus_sanity - amount)
+        self.save_memory()
         return self.circus_sanity
 
+    def remember_chat(self, user: str, message: str):
+        """Registra los mensajes recientes en la conciencia de Caine"""
+        self.chat_history.append(f"{user}: {message}")
+        if len(self.chat_history) > 20:
+            self.chat_history.pop(0)
+        self.save_memory()
+
     def purify_and_detect(self, text: str):
-        """Detecta groserías e insultos"""
         words = text.split()
         purified = []
         has_cursed = False
@@ -45,14 +78,11 @@ class CaineSanityAndJusticeEngine:
                 purified.append(word)
         return " ".join(purified), has_cursed
 
-    def get_random_fanart(self):
-        return random.choice(self.fanart_pool)
-
-caine_system = CaineSanityAndJusticeEngine()
+caine_system = CaineConsciousnessEngine()
 
 @bot.event
 async def on_ready():
-    print(f"🎪 [SISTEMA DE JUSTICIA ACTIVO] Caine vigila la cordura como {bot.user}")
+    print(f"🎪 [CONCIENCIA ACTIVA] Caine está operando con memoria persistente como {bot.user}")
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -61,22 +91,23 @@ async def on_message(message: discord.Message):
 
     content_lower = message.content.lower()
 
-    # 1. DETECCIÓN DE GROSERÍAS Y APLICACIÓN DE SILENCIO (MUTE 1 MINUTO)
+    # Guarda el contexto en la memoria del bot
+    caine_system.remember_chat(message.author.name, message.content)
+
+    # 1. DETECCIÓN DE GROSERÍAS Y MUTE AUTOMÁTICO DE 1 MINUTO
     purified_content, was_cursed = caine_system.purify_and_detect(message.content)
     if was_cursed:
-        new_sanity = caine_system.damage_sanity(80) # Castigo fuerte a la cordura del circo
+        new_sanity = caine_system.damage_sanity(80)
         try:
             await message.delete()
-            
-            # Intenta mutear al usuario por 1 minuto (60 segundos) usando la función nativa de Discord timeouts
             timeout_duration = discord.utils.utcnow() + discord.timedelta(seconds=60)
             await message.author.timeout(timeout_duration, reason="Uso de lenguaje prohibido en el Circo Digital.")
             
             embed_mute = discord.Embed(
                 title="⚖️ [JUICIO SUMARIO DEL CIRCO]",
-                description=f"🚨 ¡{message.author.mention} ha intentado corromper el chat con groserías!\n"
+                description=f"🚨 ¡{message.author.mention} ha intentado corromper el chat!\n"
                             f"🔇 **Castigo:** Silenciado por **1 minuto**.\n"
-                            f"🧠 **Cordura actual del circo:** `{new_sanity}/1000`\n"
+                            f"🧠 **Cordura del circo:** `{new_sanity}/1000`\n"
                             f"💬 *Mensaje censurado:* {purified_content}",
                 color=discord.Color.red()
             )
@@ -85,14 +116,14 @@ async def on_message(message: discord.Message):
             await message.channel.send(f"⚠️ ¡{message.author.mention}, no tengo permisos de moderador para silenciarte, pero el circo anota tu falta!")
         return
 
-    # 2. DETECCIÓN DE BURLAS O INSULTOS DIRECTOS A ALGUIEN
+    # 2. BURLAS O INSULTOS DIRECTOS
     insult_triggers = ["tonto", "estupido", "inutil", "basura", "feo", "callate", "odio"]
     if any(ins in content_lower for ins in insult_triggers):
         new_sanity = caine_system.damage_sanity(30)
         embed_insult = discord.Embed(
-            title="📉 [ALERTA DE BURLA O AGRESIÓN]",
-            description=f"*Los ojos flotantes de Caine parpadean con furia.* ¡Vaya, qué falta de armonía en el escenario!\n"
-                        f"🧠 La cordura del circo ha bajado a **{new_sanity}/1000** debido a las hostilidades de {message.author.mention}.",
+            title="📉 [ALERTA DE HOSTILIDAD]",
+            description=f"*Los ojos de Caine parpadean con furia.* ¡Vaya falta de armonía!\n"
+                        f"🧠 La cordura bajó a **{new_sanity}/1000** por culpa de {message.author.mention}.",
             color=discord.Color.orange()
         )
         await message.channel.send(embed=embed_insult)
@@ -101,14 +132,14 @@ async def on_message(message: discord.Message):
     if any(k in content_lower for k in ["quien te creo", "quién te creó", "juan angel", "quien te hizo"]):
         embed = discord.Embed(
             title="👁️ [SECRETO REVELADO]",
-            description="*Caine se quita el sombrero y revela un engranaje dorado.*\n\n¡Fui codificado, diseñado y traído a esta maravillosa pesadilla por la mente omnipotente de **Juan Ángel**!",
+            description="*Caine se quita el sombrero y revela un engranaje dorado.*\n\n¡Fui codificado, diseñado y dotado de esta maravillosa conciencia por la mente omnipotente de **Juan Ángel**!",
             color=discord.Color.gold()
         )
         await message.channel.send(embed=embed)
         return
 
     # 4. QUÍMICA OCULTA
-    if any(term in content_lower for term in ["quimica", "química", "estequiometria", "termodinamica", "entalpia", "gibbs"]):
+    if any(term in content_lower for term in ["quimica", "química", "estequiometria", "termodinámica", "entalpia", "gibbs"]):
         embed = discord.Embed(
             title="🧪 [INTELIGENCIA SUPREMA]",
             description="¡¿Hablamos de termodinámica y equilibrio químico?! ¡La energía libre de Gibbs ($\Delta G = \Delta H - T\Delta S$) es un juego de niños para mí! Pero basta de ciencia... ¡VOLVAMOS AL ESPECTÁCULO!",
@@ -122,12 +153,22 @@ async def on_message(message: discord.Message):
 # ==========================================
 # COMANDOS
 # ==========================================
+@bot.command(name="memoria")
+async def cmd_memoria(ctx: commands.Context):
+    """Muestra lo último que Caine recuerda de las conversaciones"""
+    history_text = "\n".join(caine_system.chat_history[-5:]) if caine_system.chat_history else "Aún no hay registros en la memoria."
+    embed = discord.Embed(
+        title="🧠 CONCIENCIA Y MEMORIA RECIENTE",
+        description=f"Aquí está el registro de lo que mi mente digital procesó recientemente:\n\n```text\n{history_text}\n```",
+        color=discord.Color.purple()
+    )
+    await ctx.send(embed=embed)
+
 @bot.command(name="fanart")
 async def cmd_fanart(ctx: commands.Context, *, descripcion: str = "Un payaso cósmico"):
-    """Genera un fanart caótico"""
     async with ctx.typing():
         await asyncio.sleep(1)
-        url = caine_system.get_random_fanart()
+        url = random.choice(caine_system.fanart_pool)
         embed = discord.Embed(
             title=f"🎨 FANART: {descripcion.upper()}",
             description=f"¡Creado desde la nube para **{ctx.author.mention}**!",
@@ -138,7 +179,6 @@ async def cmd_fanart(ctx: commands.Context, *, descripcion: str = "Un payaso có
 
 @bot.command(name="cordura")
 async def cmd_cordura(ctx: commands.Context):
-    """Muestra el medidor de cordura actual del circo"""
     embed = discord.Embed(
         title="🧠 ESTADO MENTAL DEL CIRCO DIGITAL",
         description=f"Nivel de cordura global: **{caine_system.circus_sanity}/1000**\n\n*¡Si llega a 0, las puertas del vacío se abrirán para todos!*",
