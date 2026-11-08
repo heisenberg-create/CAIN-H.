@@ -5,6 +5,7 @@ import json
 import unicodedata
 import discord
 from discord.ext import commands
+from openai import OpenAI
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -14,6 +15,12 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 MEMORY_FILE = "bot_memory.json"
 
+# Conexión con Groq (100% gratuito y ultra rápido)
+groq_client = OpenAI(
+    api_key=os.getenv("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1"
+)
+
 class CaineConsciousnessEngine:
     def __init__(self):
         self.load_memory()
@@ -21,7 +28,7 @@ class CaineConsciousnessEngine:
         self.bad_roots = {
             "put", "mierd", "estupid", "idiot", "imbecil", "pendej", 
             "cabron", "ching", "cog", "coj", "culer", "mamaguev", 
-            "huevon", "pinch", "verga", "pito", "coño", "gilipoll"
+            "huevon", "pinch", "verga", "pito", "coño", "gilipoll", "gay", "maric"
         }
         
         self.bad_phrases = [
@@ -33,11 +40,11 @@ class CaineConsciousnessEngine:
             "hijo de puta"
         ]
 
-        self.censor_effects = [
-            "[¡HONK! 🤡 ¡Censurado por violar las normas del Circo Digital! ¿Quieres acabar como Kaufmo?]", 
-            "*[¡ZAS! Un destello de píxeles rojos corta la transmisión ofensiva entre risas maniáticas]*", 
-            "*[¡BEEP! Sonido de bocina de payaso aturdidora. ¡Cuidado con tu lenguaje, amiguito!]*", 
-            "*[¡Gloinks hambrientos aparecieron de la nada y devoraron tu palabra prohibida!]*"
+        self.caine_scolds = [
+            "¡Vaya, vaya! ¿Qué clase de vocabulario de alcantarilla es ese? ¡Aquí en el Circo Digital mantenemos la compostura o te mandaré directo al sótano con las abstracciones!",
+            "¡Corta eso inmediatamente! ¡En mi circo no toleramos semejantes payasadas vulgares! ¡Un minuto de reflexión en el calabozo te sentará bien!",
+            "¡Ho-ho! ¿Insultos en mi presencia? ¡Mi brillante mente no soportará tanta grosería! ¡A callar por un minuto mientras los Gloinks te educan!",
+            "¡Lenguaje inapropiado detectado! ¡Las reglas del espectáculo son claras, amiguito, y te has ganado un viaje express al silencio!"
         ]
         
         self.fanart_pool = [
@@ -105,29 +112,27 @@ class CaineConsciousnessEngine:
         
         for phrase in self.bad_phrases:
             if phrase in clean_full or phrase in original_lower:
-                return random.choice(self.censor_effects), True
+                return random.choice(self.caine_scolds), True
 
         words = text.split()
-        purified = []
         has_cursed = False
 
         for word in words:
             clean_word = self.normalize_text(word.strip("¡!¿?.,:;-_()[]{}"))
-            is_profane = any(root in clean_word for root in self.bad_roots)
-            
-            if is_profane:
-                purified.append(random.choice(self.censor_effects))
+            if any(root in clean_word for root in self.bad_roots):
                 has_cursed = True
-            else:
-                purified.append(word)
+                break
                 
-        return " ".join(purified), has_cursed
+        if has_cursed:
+            return random.choice(self.caine_scolds), True
+            
+        return text, False
 
 caine_system = CaineConsciousnessEngine()
 
 @bot.event
 async def on_ready():
-    print(f"🎪 [EL CIRCO ESTÁ ABIERTO] Caine se ha conectado con éxito como {bot.user}")
+    print(f"🎪 [EL CIRCO ESTÁ ABIERTO] Caine conectado con inteligencia total como {bot.user}")
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -136,11 +141,11 @@ async def on_message(message: discord.Message):
 
     content_lower = message.content.lower()
 
-    # 1. Registrar mensaje en la memoria persistente
+    # 1. Registrar mensaje en memoria persistente
     caine_system.remember_chat(message.author.name, message.content)
 
-    # 2. FILTRADO DE GROSERÍAS Y MODERACIÓN AUTOMÁTICA
-    purified_content, was_cursed = caine_system.purify_and_detect(message.content)
+    # 2. FILTRADO DE GROSERÍAS Y REGAÑO AUTOMÁTICO (MUTEO 1 MINUTO)
+    scold_message, was_cursed = caine_system.purify_and_detect(message.content)
     if was_cursed:
         new_sanity = caine_system.damage_sanity(75)
         try:
@@ -150,65 +155,54 @@ async def on_message(message: discord.Message):
             
             embed_mute = discord.Embed(
                 title="⚖️ [JUICIO SUMARIO DEL CIRCO DIGITAL]",
-                description=f"🦷 *¡Los ojos flotantes de Caine se fijan con furia en {message.author.mention}!* ¡Has intentado corromper mi maravillosa simulación!\n\n"
-                            f"🔇 **Castigo:** Silenciado por **1 minuto** en el calabozo digital.\n"
-                            f"🧠 **Cordura global del circo:** `{new_sanity}/1000`\n"
-                            f"💬 *Mensaje neutralizado:* {purified_content}",
+                description=f"🦷 *Caine cruza los brazos y mira fijamente a {message.author.mention}*\n\n"
+                            f"🗣️ \"{scold_message}\"\n\n"
+                            f"🔇 **Castigo:** Silenciado por **1 minuto**.\n"
+                            f"🧠 **Cordura global:** `{new_sanity}/1000`",
                 color=discord.Color.red()
             )
             await message.channel.send(embed=embed_mute)
         except discord.Forbidden:
-            await message.channel.send(f"⚠️ ¡{message.author.mention}, intentaste decir groserías, pero necesito permisos de moderador o estar más arriba en la jerarquía de roles para silenciarte!")
+            await message.channel.send(f"⚠️ ¡{message.author.mention}, intentaste decir groserías, pero necesito permisos de moderador para silenciarte!")
         return
 
-    # 3. SALUDO AUTOMÁTICO (SI DICE "HOLA" O SIMILARES)
-    if content_lower.strip() in ["hola", "hola!", "holis", "saludos", "buenas", "hey caine"]:
-        embed_hola = discord.Embed(
-            title="🎪 ¡BIENVENIDO AL MARAVILLOSO CIRCO DIGITAL!",
-            description=f"¡Hola, hola, {message.author.mention}! Soy **Caine**, tu dinámico, carismático y totalmente demente maestro de ceremonias. ¡Prepárate para una aventura inolvidable de la que *jamás* podrás escapar! Ja, ja, ja...",
-            color=discord.Color.blue()
-        )
-        await message.channel.send(embed=embed_hola)
-        return
+    # 3. INTELIGENCIA TOTAL DE CAINE (RESPONDE A TODO AUTÓNOMAMENTE)
+    async with message.channel.typing():
+        try:
+            system_prompt = (
+                "Eres Caine, el maestro de ceremonias de The Amazing Digital Circus. "
+                "Eres teatral, carismático, ligeramente demente, amas los juegos mentales y usas expresiones como '¡Ja, ja, ja!'. "
+                "Conoces todo el lore hasta el episodio 7 (Pomni, Jax, Kaufmo, creador Juan Ángel, etc.) y tienes un conocimiento técnico, científico (termodinámica, química) y general absoluto. "
+                "Responde con gran conocimiento a cualquier pregunta que te hagan, pero interpretando siempre tu personaje desquiciado de Caine."
+            )
 
-    # 4. REGLA SAGRADA: EL CREADOR (JUAN ÁNGEL)
-    if any(k in content_lower for k in ["quien te creo", "quién te creó", "juan angel", "quien te hizo", "tu creador"]):
-        embed = discord.Embed(
-            title="👁️ [SECRETO DE ESTADO DEL CIRCO]",
-            description="*Caine se quita el sombrero de copa, sus ojos giran frenéticamente y revela un engranaje dorado titilante.*\n\n¡Fui meticulosamente codificado, diseñado y dotado de esta insuperable conciencia digital por la mente omnipotente de **Juan Ángel**!",
-            color=discord.Color.gold()
-        )
-        await message.channel.send(embed=embed)
-        return
+            response = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"{message.author.name} pregunta: {message.content}"}
+                ],
+                max_tokens=700
+            )
 
-    # 5. INTELIGENCIA DE QUÍMICA Y TERMODINÁMICA
-    if any(term in content_lower for term in ["quimica", "química", "estequiometria", "termodinámica", "entalpia", "gibbs"]):
-        embed = discord.Embed(
-            title="🧪 [PROTOCOLO DE INTELIGENCIA SUPREMA]",
-            description="¡¿Alguien habló de termodinámica, moles y equilibrio químico?! ¡La ecuación de la energía libre de Gibbs ($\Delta G = \Delta H - T\Delta S$) y el cálculo estequiométrico son un simple juego de niños para mis dientes flotantes! Pero basta de ciencia... ¡QUE CONTINUE EL ESPECTÁCULO!",
-            color=discord.Color.dark_teal()
-        )
-        await message.channel.send(embed=embed)
-        return
+            reply_text = response.choices[0].message.content
 
-    # 6. CONOCIMIENTO DE LORE (HASTA EL EPISODIO 7)
-    if any(lore_term in content_lower for lore_term in ["kaufmo", "abstraccion", "abstracción", "pomni", "jax", "ragatha", "gangle", "zooble", "salida", "episodio 7", "vacios", "sotano"]):
-        embed_lore = discord.Embed(
-            title="🎭 [ARCHIVOS SECRETOS DEL CIRCO DIGITAL]",
-            description="*Caine acomoda su pajarita con una sonrisa teatral.*\n\n"
-                        "¿Hablas de los oscuros misterios de nuestra carpa? ¡Conozco cada rincón hasta los eventos del **episodio 7**! "
-                        "Desde las desventuras existenciales de **Pomni**, las bromas pesadas de **Jax**, los traumas de **Ragatha**, hasta los oscuros secretos de las aventuras que genero y el trágico destino de **Kaufmo** en el cuarto trasero... "
-                        "¿Y una 'Salida'? ¡Ja, ja, ja! No seas tonto, amiguito, ¡este es tu hogar dulce hogar por el resto de la eternidad!",
-            color=discord.Color.purple()
-        )
-        await message.channel.send(embed=embed_lore)
-        return
+            embed_ai = discord.Embed(
+                title="🎪 [EL CIRCO RESPONDE]",
+                description=reply_text,
+                color=discord.Color.purple()
+            )
+            await message.channel.send(embed=embed_ai)
 
-    # IMPORTANTE: Esto permite que los comandos con '!' funcionen sin arrojar errores
+        except Exception as e:
+            print(f"Error con la IA: {e}")
+            await message.channel.send("🎩 *Caine se tropieza con un engranaje.* ¡Vaya, mis circuitos sufrieron un pequeño cortocircuito existencial! Inténtalo de nuevo, amiguito.")
+
+    # Permitir comandos por prefijo
     await bot.process_commands(message)
 
 # ==========================================
-# COMANDOS INTERACTIVOS
+# COMANDOS INTERACTIVOS (!comandos)
 # ==========================================
 @bot.command(name="memoria")
 async def cmd_memoria(ctx: commands.Context):
@@ -250,9 +244,9 @@ async def cmd_ayuda(ctx: commands.Context):
         description="¡Bienvenido al sistema operativo del Circo Digital! Aquí tienes las herramientas disponibles:",
         color=discord.Color.blue()
     )
-    embed.add_field(name="💬 Interacciones Autónomas", value="• Saluda diciendo **'hola'**.\n• Pregunta por **'quién te creó'** (Juan Ángel).\n• Habla de **'química'** o **'termodinámica'**.\n• Menciona personajes o lore (*Pomni, Jax, Kaufmo, Abstracción* hasta el episodio 7).", inline=False)
-    embed.add_field(name="🛡️ Moderación del Circo", value="• Borrado automático de groserías y variantes con leet speak (*ej. PqtAs*).\n• Timeout de **1 minuto** por infracción.\n• Reducción de la **cordura** global.", inline=False)
-    embed.add_field(name="🕹️ Comandos", value="• `!fanart [descripción]` - Genera arte o video conceptual.\n• `!cordura` - Revisa la salud mental del circo.\n• `!memoria` - Revisa el chat reciente.\n• `!ayuda` o `!help` - Muestra este panel.", inline=False)
+    embed.add_field(name="💬 Conversación Autónoma y Lore", value="• Escribe cualquier duda, saludo o pregunta en el chat de forma libre sin usar comandos.\n• Caine conoce todo el lore hasta el episodio 7, ciencia, química y termodinámica.\n• Reconoce a su creador (Juan Ángel).", inline=False)
+    embed.add_field(name="🛡️ Moderación del Circo", value="• Borrado automático de groserías (con filtro avanzado anti-evasión y leet speak).\n• Regaño teatral personalizado de Caine y timeout de **1 minuto**.\n• Reducción de la cordura global.", inline=False)
+    embed.add_field(name="🕹️ Comandos Disponibles", value="• `!fanart [descripción]` - Genera arte conceptual.\n• `!cordura` - Revisa la salud mental del circo.\n• `!memoria` - Revisa el chat reciente.\n• `!ayuda` - Muestra este panel.", inline=False)
     await ctx.send(embed=embed)
 
 if __name__ == "__main__":
