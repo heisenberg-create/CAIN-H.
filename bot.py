@@ -2,10 +2,10 @@ import asyncio
 import random
 import os
 import json
+import urllib.request
 import unicodedata
 import discord
 from discord.ext import commands
-from openai import OpenAI
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -14,15 +14,6 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 MEMORY_FILE = "bot_memory.json"
-
-# Configuración segura del cliente de Groq
-groq_api_key = os.getenv("GROQ_API_KEY")
-groq_client = None
-if groq_api_key and groq_api_key.strip():
-    groq_client = OpenAI(
-        api_key=groq_api_key.strip(),
-        base_url="https://api.groq.com/openai/v1"
-    )
 
 class CaineConsciousnessEngine:
     def __init__(self):
@@ -133,6 +124,43 @@ class CaineConsciousnessEngine:
 
 caine_system = CaineConsciousnessEngine()
 
+def ask_groq_api(prompt: str) -> str:
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise Exception("GROQ_API_KEY no encontrada")
+
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    
+    system_instruction = (
+        "Eres Caine, el maestro de ceremonias de The Amazing Digital Circus. "
+        "Eres teatral, carismático, ligeramente demente, amas los juegos mentales y usas expresiones como '¡Ja, ja, ja!'. "
+        "Conoces todo el lore hasta el episodio 7 (Pomni, Jax, Kaufmo, tu creador Juan Ángel, etc.) y tienes un conocimiento técnico, científico (termodinámica, química) y general absoluto. "
+        "Responde con gran conocimiento a cualquier pregunta que te hagan, interpretando siempre tu personaje desquiciado de Caine."
+    )
+
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 600
+    }
+
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers={
+        "Authorization": f"Bearer {api_key.strip()}",
+        "Content-Type": "application/json"
+    })
+
+    try:
+        with urllib.request.urlopen(req) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            return res_data["choices"][0]["message"]["content"]
+    except Exception as e:
+        print(f"Error en API Groq: {e}")
+        raise e
+
 @bot.event
 async def on_ready():
     print(f"🎪 [EL CIRCO ESTÁ ABIERTO] Caine conectado como {bot.user}")
@@ -169,33 +197,13 @@ async def on_message(message: discord.Message):
             await message.channel.send(f"⚠️ ¡{message.author.mention}, intentaste decir groserías, pero necesito permisos de moderador para silenciarte!")
         return
 
-    # 3. INTELIGENCIA DE GROQ CON RESPALDO TEATRAL ROBUSTO
+    # 3. CONSULTA DIRECTA A LA API DE GROQ
     async with message.channel.typing():
         response_text = ""
         try:
-            if not groq_client:
-                raise Exception("GROQ_API_KEY no configurada.")
-
-            system_prompt = (
-                "Eres Caine, el maestro de ceremonias de The Amazing Digital Circus. "
-                "Eres teatral, carismático, ligeramente demente, amas los juegos mentales y usas expresiones como '¡Ja, ja, ja!'. "
-                "Conoces todo el lore hasta el episodio 7 (Pomni, Jax, Kaufmo, creador Juan Ángel, etc.) y tienes un conocimiento técnico, científico (termodinámica, química) y general absoluto. "
-                "Responde con gran conocimiento a cualquier pregunta que te hagan, interpretando siempre tu personaje desquiciado de Caine."
-            )
-
-            response = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"{message.author.name} pregunta: {message.content}"}
-                ],
-                max_tokens=600
-            )
-            response_text = response.choices[0].message.content
-
+            response_text = await asyncio.to_thread(ask_groq_api, f"{message.author.name} pregunta: {message.content}")
         except Exception as e:
-            print(f"Aviso de IA / Error: {e}")
-            # Si la API falla, Caine responde con su auténtica personalidad según el tema
+            # Respaldo teatral en caso de cualquier fallo de red extremo
             if any(term in content_lower for term in ["quimica", "química", "termodinámica", "entalpia", "gibbs"]):
                 response_text = f"¡¿Alguien habló de termodinámica, moles y equilibrio químico, {message.author.mention}?! ¡La ecuación de la energía libre de Gibbs ($\Delta G = \Delta H - T\Delta S$) y la estequiometría son un juego de niños para mis dientes flotantes! ¡Ja, ja!"
             elif any(k in content_lower for k in ["creador", "creo", "hizo", "juan angel"]):
