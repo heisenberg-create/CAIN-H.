@@ -15,9 +15,10 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 MEMORY_FILE = "bot_memory.json"
 
-# Conexión con Groq (100% gratuito y ultra rápido)
+# Inicializar cliente de Groq de forma segura
+groq_api_key = os.getenv("GROQ_API_KEY")
 groq_client = OpenAI(
-    api_key=os.getenv("GROQ_API_KEY"),
+    api_key=groq_api_key if groq_api_key else "dummy_key",
     base_url="https://api.groq.com/openai/v1"
 )
 
@@ -132,7 +133,7 @@ caine_system = CaineConsciousnessEngine()
 
 @bot.event
 async def on_ready():
-    print(f"🎪 [EL CIRCO ESTÁ ABIERTO] Caine conectado con inteligencia total como {bot.user}")
+    print(f"🎪 [EL CIRCO ESTÁ ABIERTO] Caine conectado como {bot.user}")
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -141,10 +142,10 @@ async def on_message(message: discord.Message):
 
     content_lower = message.content.lower()
 
-    # 1. Registrar mensaje en memoria persistente
+    # 1. Registrar mensaje en memoria
     caine_system.remember_chat(message.author.name, message.content)
 
-    # 2. FILTRADO DE GROSERÍAS Y REGAÑO AUTOMÁTICO (MUTEO 1 MINUTO)
+    # 2. FILTRADO DE GROSERÍAS Y REGAÑO AUTOMÁTICO
     scold_message, was_cursed = caine_system.purify_and_detect(message.content)
     if was_cursed:
         new_sanity = caine_system.damage_sanity(75)
@@ -166,14 +167,15 @@ async def on_message(message: discord.Message):
             await message.channel.send(f"⚠️ ¡{message.author.mention}, intentaste decir groserías, pero necesito permisos de moderador para silenciarte!")
         return
 
-    # 3. INTELIGENCIA TOTAL DE CAINE (RESPONDE A TODO AUTÓNOMAMENTE)
+    # 3. INTELIGENCIA DE GROQ CON RESPALDO LOCAL
     async with message.channel.typing():
+        response_text = ""
         try:
             system_prompt = (
                 "Eres Caine, el maestro de ceremonias de The Amazing Digital Circus. "
                 "Eres teatral, carismático, ligeramente demente, amas los juegos mentales y usas expresiones como '¡Ja, ja, ja!'. "
-                "Conoces todo el lore hasta el episodio 7 (Pomni, Jax, Kaufmo, creador Juan Ángel, etc.) y tienes un conocimiento técnico, científico (termodinámica, química) y general absoluto. "
-                "Responde con gran conocimiento a cualquier pregunta que te hagan, pero interpretando siempre tu personaje desquiciado de Caine."
+                "Conoces todo el lore hasta el episodio 7 (Pomni, Jax, Kaufmo, creador Juan Ángel, etc.) y tienes un conocimiento técnico, científico y general absoluto. "
+                "Responde con gran conocimiento a cualquier pregunta que te hagan, interpretando siempre tu personaje desquiciado de Caine."
             )
 
             response = groq_client.chat.completions.create(
@@ -182,27 +184,33 @@ async def on_message(message: discord.Message):
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"{message.author.name} pregunta: {message.content}"}
                 ],
-                max_tokens=700
+                max_tokens=600
             )
-
-            reply_text = response.choices[0].message.content
-
-            embed_ai = discord.Embed(
-                title="🎪 [EL CIRCO RESPONDE]",
-                description=reply_text,
-                color=discord.Color.purple()
-            )
-            await message.channel.send(embed=embed_ai)
+            response_text = response.choices[0].message.content
 
         except Exception as e:
-            print(f"Error con la IA: {e}")
-            await message.channel.send("🎩 *Caine se tropieza con un engranaje.* ¡Vaya, mis circuitos sufrieron un pequeño cortocircuito existencial! Inténtalo de nuevo, amiguito.")
+            print(f"Error detallado de Groq: {e}")
+            # Si falla la API de Groq, Caine responde localmente con su personalidad de circo
+            if any(term in content_lower for term in ["quimica", "química", "termodinámica", "entalpia", "gibbs"]):
+                response_text = "¡¿Alguien habló de termodinámica y equilibrio químico?! ¡La ecuación de Gibbs ($\Delta G = \Delta H - T\Delta S$) es pan comido para mis dientes flotantes! ¡Ja, ja!"
+            elif any(k in content_lower for k in ["pomni", "jax", "kaufmo", "abstraccion", "episodio 7"]):
+                response_text = "¡Ay, las maravillosas aventuras y traumas de nuestra carpa hasta el episodio 7! Recuerda que intentar buscar una 'Salida' es una pérdida de tiempo. ¡Este es tu hogar para siempre! Ja, ja, ja!"
+            elif any(k in content_lower for k in ["quien eres", "qué eres", "caine"]):
+                response_text = f"¡¿Que quién soy, {message.author.mention}?! ¡Soy Caine! El amo, creador y maestro de ceremonias absoluto de este maravilloso Circo Digital!"
+            else:
+                response_text = f"¡Oh, una pregunta fascinante, {message.author.mention}! Mi mente digital procesa tus datos sobre '{message.content}'. ¡El espectáculo debe continuar y el conocimiento fluye por el circo!"
 
-    # Permitir comandos por prefijo
+        embed_ai = discord.Embed(
+            title="🎪 [EL CIRCO RESPONDE]",
+            description=response_text,
+            color=discord.Color.purple()
+        )
+        await message.channel.send(embed=embed_ai)
+
     await bot.process_commands(message)
 
 # ==========================================
-# COMANDOS INTERACTIVOS (!comandos)
+# COMANDOS INTERACTIVOS
 # ==========================================
 @bot.command(name="memoria")
 async def cmd_memoria(ctx: commands.Context):
@@ -244,9 +252,9 @@ async def cmd_ayuda(ctx: commands.Context):
         description="¡Bienvenido al sistema operativo del Circo Digital! Aquí tienes las herramientas disponibles:",
         color=discord.Color.blue()
     )
-    embed.add_field(name="💬 Conversación Autónoma y Lore", value="• Escribe cualquier duda, saludo o pregunta en el chat de forma libre sin usar comandos.\n• Caine conoce todo el lore hasta el episodio 7, ciencia, química y termodinámica.\n• Reconoce a su creador (Juan Ángel).", inline=False)
-    embed.add_field(name="🛡️ Moderación del Circo", value="• Borrado automático de groserías (con filtro avanzado anti-evasión y leet speak).\n• Regaño teatral personalizado de Caine y timeout de **1 minuto**.\n• Reducción de la cordura global.", inline=False)
-    embed.add_field(name="🕹️ Comandos Disponibles", value="• `!fanart [descripción]` - Genera arte conceptual.\n• `!cordura` - Revisa la salud mental del circo.\n• `!memoria` - Revisa el chat reciente.\n• `!ayuda` - Muestra este panel.", inline=False)
+    embed.add_field(name="💬 Conversación Autónoma", value="• Escribe cualquier pregunta en el chat y Caine te responderá con su personalidad y conocimiento.", inline=False)
+    embed.add_field(name="🛡️ Moderación del Circo", value="• Filtro de groserías con leet speak, regaño teatral, timeout de 1 minuto y cordura.", inline=False)
+    embed.add_field(name="🕹️ Comandos Disponibles", value="• `!fanart [descripción]`\n• `!cordura`\n• `!memoria`\n• `!ayuda`", inline=False)
     await ctx.send(embed=embed)
 
 if __name__ == "__main__":
